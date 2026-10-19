@@ -28,7 +28,6 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv(installationName: 'MySonarQubeServer', credentialsId: 'sonarqube-token') {
-                    // Runs SonarQube analysis using explicit plugin identifier
                     sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=country-service -Dsonar.projectName=country-service'
                 }
             }
@@ -43,11 +42,29 @@ pipeline {
 
         stage('Deploy Reports (JaCoCo & Surefire) to Nexus') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
-                    // Double quotes (") allow Groovy to substitute ${NEXUS_USER} and ${NEXUS_PASS}
-                    sh "mvn wagon:upload -Dwagon.fromDir=target/site/jacoco -Dwagon.url=http://localhost:8081/repository/maven-releases/reports/jacoco/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}"
-                    
-                    sh "mvn wagon:upload -Dwagon.fromDir=target/surefire-reports -Dwagon.url=http://localhost:8081/repository/maven-releases/reports/surefire/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}"
+                withCredentials([usernamePassword(credentialsId: 'nexus-credentials',
+                                                  usernameVariable: 'NEXUS_USER',
+                                                  passwordVariable: 'NEXUS_PASS')]) {
+                    // Triple single quotes: Groovy does not interpolate, the shell reads the variables
+                    sh '''
+                        set +x
+                        BASE="http://localhost:8081/repository/jacoco-reports/country-service/build-${BUILD_NUMBER}"
+
+                        upload_dir() {
+                            src="$1"
+                            dest="$2"
+                            list="$(mktemp)"
+                            (cd "$src" && find . -type f | sed 's|^\\./||') > "$list"
+                            while read -r f; do
+                                curl -sS -f -u "$NEXUS_USER:$NEXUS_PASS" \
+                                     --upload-file "$src/$f" "$BASE/$dest/$f"
+                            done < "$list"
+                            rm -f "$list"
+                        }
+
+                        upload_dir target/site/jacoco jacoco
+                        upload_dir target/surefire-reports surefire
+                    '''
                 }
             }
         }
