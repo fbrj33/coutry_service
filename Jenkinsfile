@@ -36,21 +36,19 @@ pipeline {
 
         stage('Deploy Artifact (.jar) to Nexus') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
-                    // Deploys the packaged jar to Nexus using injected credentials
-                    sh 'mvn deploy -DskipTests -Dusername=${NEXUS_USER} -Dpassword=${NEXUS_PASS}'
-                }
+                // Uses credentials from /var/lib/jenkins/.m2/settings.xml
+                sh 'mvn deploy -DskipTests'
             }
         }
 
         stage('Deploy Reports (JaCoCo & Surefire) to Nexus') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
-                    // Uploads JaCoCo coverage reports directory to Nexus
-                    sh 'mvn wagon:upload-directory -Dwagon.fromDir=target/site/jacoco -Dwagon.url=dav:http://localhost:8081/repository/maven-releases/reports/jacoco/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}'
+                    // Uploads JaCoCo coverage reports directory to Nexus using 'upload'
+                    sh 'mvn wagon:upload -Dwagon.fromDir=target/site/jacoco -Dwagon.url=dav:http://localhost:8081/repository/maven-releases/reports/jacoco/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}'
                     
-                    // Uploads Surefire test reports directory to Nexus
-                    sh 'mvn wagon:upload-directory -Dwagon.fromDir=target/surefire-reports -Dwagon.url=dav:http://localhost:8081/repository/maven-releases/reports/surefire/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}'
+                    // Uploads Surefire test reports directory to Nexus using 'upload'
+                    sh 'mvn wagon:upload -Dwagon.fromDir=target/surefire-reports -Dwagon.url=dav:http://localhost:8081/repository/maven-releases/reports/surefire/ -Dwagon.username=${NEXUS_USER} -Dwagon.password=${NEXUS_PASS}'
                 }
             }
         }
