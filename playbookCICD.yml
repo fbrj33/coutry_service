@@ -1,55 +1,50 @@
+
 ---
 - name: Build and Deploy Docker Image to Kubernetes
-  hosts: localhost         
+  hosts: localhost
   connection: local
 
   vars_files:
-    - vault.yml             
+    - vault.yml
 
   vars:
     image_name: my-country-service
     image_tag: v1
-    dockerfile_path: './'
+    dockerfile_path: "{{ playbook_dir }}"
 
   tasks:
+
     - name: Log in to Docker Hub
-      community.general.docker_login:
-        username: "{{ dockerhub_username }}"   
-        password: "{{ dockerhub_password }}"   
-        reauthorize: yes
+      community.docker.docker_login:
+        username: "{{ dockerhub_username }}"
+        password: "{{ dockerhub_password }}"
+        reauthorize: true
 
     - name: Build Docker image
-      docker_image:
+      community.docker.docker_image:
+        name: "{{ dockerhub_username }}/{{ image_name }}"
+        tag: "{{ image_tag }}"
+        source: build
         build:
           path: "{{ dockerfile_path }}"
-        name: "{{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}"
-        source: build
-        state: present
-        tag: "{{ image_tag }}"
 
-    - name: Push the Docker image to Docker Hub
-      docker_image:
-        name: "{{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}"   
+    - name: Push Docker image to Docker Hub
+      community.docker.docker_image:
+        name: "{{ dockerhub_username }}/{{ image_name }}"
         tag: "{{ image_tag }}"
-        push: yes
+        push: true
         source: local
-
-    - name: Pull Docker image (optional, for verification or on target nodes)
-      docker_image:
-        name: "{{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}"   
-        tag: "{{ image_tag }}"
-        source: pull
 
     - name: Apply Kubernetes Deployment
       kubernetes.core.k8s:
         state: present
         namespace: jenkins
-        src: deployment.yaml
-        kubeconfig: config    
+        src: "{{ playbook_dir }}/deployment.yaml"
+        kubeconfig: "{{ playbook_dir }}/config"
 
     - name: Apply Kubernetes Service
       kubernetes.core.k8s:
         state: present
         namespace: jenkins
-        src: service.yaml
-        kubeconfig: config     # ✅ FIXED: was "kubecongf" (typo in PDF)
+        src: "{{ playbook_dir }}/service.yaml"
+        kubeconfig: "{{ playbook_dir }}/config"
