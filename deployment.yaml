@@ -1,21 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: myapp-deployment        # Nom du déploiement
-  labels:
-    app: myapp                  # Label qui identifie l'application
+  name: my-country-service
 spec:
-  replicas: 3                   # Nombre de pods à créer
+  replicas: 3
   selector:
     matchLabels:
-      app: myapp                # Le sélecteur correspond aux labels des pods gérés
-  template:                     # Modèle des pods créés par le déploiement
+      app: country-service
+  template:
     metadata:
       labels:
-        app: myapp              # Label appliqué aux pods (doit correspondre au selector)
+        app: country-service
     spec:
       containers:
-        - name: myapp-container # Nom du conteneur
-          image: nginx:latest   # Image Docker utilisée
+        - name: country-service
+          image: farahbenrejab/my-country-service:5
           ports:
-            - containerPort: 80 # Port sur lequel le conteneur écoute
+            - containerPort: 8082
