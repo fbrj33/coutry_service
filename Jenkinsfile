@@ -12,12 +12,24 @@ pipeline {
             }
         }
 
+        stage('Check tools') {
+            steps {
+                sh '''
+                    helm version --short
+                    ansible --version | head -1
+                    docker --version
+                '''
+            }
+        }
+
         stage('Compile, Test & JaCoCo Coverage') {
             steps {
+                // Compiles code, runs test suite, and generates JaCoCo coverage report
                 sh 'mvn clean test jacoco:report'
             }
             post {
                 always {
+                    // Publishes test results within Jenkins UI
                     junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
@@ -33,6 +45,8 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
+                // Requires a SonarQube webhook to http://<jenkins>:8080/sonarqube-webhook/
+                // Delete this stage if you have not configured the webhook
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -41,6 +55,7 @@ pipeline {
 
         stage('Deploy Artifact (.jar) to Nexus') {
             steps {
+                // Deploys main artifact using credentials configured in /var/lib/jenkins/.m2/settings.xml
                 sh 'mvn deploy -DskipTests'
             }
         }
@@ -50,6 +65,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials',
                                                   usernameVariable: 'NEXUS_USER',
                                                   passwordVariable: 'NEXUS_PASS')]) {
+                    // Triple single quotes: Groovy does not interpolate, the shell reads the variables
                     sh '''
                         set +x
                         BASE="http://localhost:8081/repository/jacoco-reports/country-service/build-${BUILD_NUMBER}"
@@ -92,11 +108,63 @@ pipeline {
                 }
             }
         }
+
+        stage('Monitoring: kube-state-metrics') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
+                        helm repo update
+                        helm upgrade --install kube-state-metrics prometheus-community/kube-state-metrics \
+                          -n monitoring --create-namespace --wait --timeout 5m
+                    '''
+                }
+            }
+        }
+
+        stage('Monitoring: Prometheus') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        helm upgrade --install prometheus prometheus-community/prometheus \
+                          -n monitoring -f monitoring/prom-values.yaml --wait --timeout 5m
+                    '''
+                }
+            }
+        }
+
+        stage('Monitoring: Grafana') {
+            steps {
+                withCredentials([
+                    file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG'),
+                    string(credentialsId: 'grafana-admin-password', variable: 'GRAFANA_PASS')
+                ]) {
+                    sh '''
+                        set +x
+                        helm repo add grafana https://grafana.github.io/helm-charts --force-update
+                        helm repo update
+                        helm upgrade --install grafana grafana/grafana \
+                          -n monitoring -f monitoring/grafana-values.yaml \
+                          --set-string adminPassword="$GRAFANA_PASS" --wait --timeout 5m
+                    '''
+                }
+            }
+        }
+
+        stage('Verify') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        helm list -n monitoring
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo "CI/CD pipeline completed. Image tag: ${env.BUILD_NUMBER}"
+            echo "CI/CD pipeline completed. Image tag: ${env.BUILD_NUMBER}. Grafana: NodePort 30300."
         }
         failure {
             echo 'CI/CD pipeline failed. Check the stage logs.'
