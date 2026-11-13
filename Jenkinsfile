@@ -50,22 +50,20 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    withSonarQubeEnv(
-                        installationName: 'MySonarQubeServer',
-                        credentialsId: 'sonarqube-token'
-                    ) {
-                        sh '''
-                            mvn sonar:sonar \
-                              -Dsonar.projectKey=country-service \
-                              -Dsonar.projectName=country-service \
-                              -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                        '''
-                    }
-                }
-            }
+    steps {
+        withSonarQubeEnv(
+            installationName: 'MySonarQubeServer',
+            credentialsId: 'sonarqube-token'
+        ) {
+            sh '''
+                mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.3.0.6276:sonar \
+                    -Dsonar.projectKey=country-service \
+                    -Dsonar.projectName=country-service \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+            '''
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
