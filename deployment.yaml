@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: country-service
-          image: farahbenrejab/my-country-service:5
+          image: farahbenrejab/my-country-service:{{ image_tag }}
           ports:
             - containerPort: 8082
