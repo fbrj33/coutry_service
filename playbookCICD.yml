@@ -1,5 +1,3 @@
-
----
 - name: Build and Deploy Docker Image to Kubernetes
   hosts: localhost
   connection: local
@@ -9,11 +7,11 @@
 
   vars:
     image_name: my-country-service
-    image_tag: v1
+    image_tag: latest
     dockerfile_path: "{{ playbook_dir }}"
+    kube_config: "{{ kubeconfig_path | default(playbook_dir + '/config') }}"
 
   tasks:
-
     - name: Log in to Docker Hub
       community.docker.docker_login:
         username: "{{ dockerhub_username }}"
@@ -35,16 +33,18 @@
         push: true
         source: local
 
-    - name: Apply Kubernetes Deployment
+    - name: Apply Kubernetes Deployment (and wait until pods are ready)
       kubernetes.core.k8s:
         state: present
         namespace: jenkins
-        src: "{{ playbook_dir }}/deployment.yaml"
-        kubeconfig: "{{ playbook_dir }}/config"
+        kubeconfig: "{{ kube_config }}"
+        definition: "{{ lookup('template', playbook_dir + '/deployment.yaml') | from_yaml }}"
+        wait: true
+        wait_timeout: 180
 
     - name: Apply Kubernetes Service
       kubernetes.core.k8s:
         state: present
         namespace: jenkins
+        kubeconfig: "{{ kube_config }}"
         src: "{{ playbook_dir }}/service.yaml"
-        kubeconfig: "{{ playbook_dir }}/config"
