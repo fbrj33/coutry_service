@@ -14,12 +14,10 @@ pipeline {
 
         stage('Compile, Test & JaCoCo Coverage') {
             steps {
-                // Compiles code, runs test suite, and generates JaCoCo coverage report
                 sh 'mvn clean test jacoco:report'
             }
             post {
                 always {
-                    // Publishes test results within Jenkins UI
                     junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
@@ -33,9 +31,16 @@ pipeline {
             }
         }
 
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
         stage('Deploy Artifact (.jar) to Nexus') {
             steps {
-                // Deploys main artifact using credentials configured in /var/lib/jenkins/.m2/settings.xml
                 sh 'mvn deploy -DskipTests'
             }
         }
@@ -45,7 +50,6 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials',
                                                   usernameVariable: 'NEXUS_USER',
                                                   passwordVariable: 'NEXUS_PASS')]) {
-                    // Triple single quotes: Groovy does not interpolate, the shell reads the variables
                     sh '''
                         set +x
                         BASE="http://localhost:8081/repository/jacoco-reports/country-service/build-${BUILD_NUMBER}"
@@ -68,11 +72,31 @@ pipeline {
                 }
             }
         }
+
+        stage('Docker Build, Push & Deploy to Kubernetes (Ansible)') {
+            steps {
+                withCredentials([
+                    file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE'),
+                    string(credentialsId: 'ansible-vault-pass', variable: 'VAULT_PASS')
+                ]) {
+                    sh '''
+                        set +x
+                        VAULT_FILE="$(mktemp)"
+                        echo "$VAULT_PASS" > "$VAULT_FILE"
+                        ansible-playbook playbookCICD.yml \
+                          --vault-password-file "$VAULT_FILE" \
+                          -e image_tag=${BUILD_NUMBER} \
+                          -e kubeconfig_path="$KUBECONFIG_FILE"
+                        rm -f "$VAULT_FILE"
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo 'CI/CD pipeline completed successfully.'
+            echo "CI/CD pipeline completed. Image tag: ${env.BUILD_NUMBER}"
         }
         failure {
             echo 'CI/CD pipeline failed. Check the stage logs.'
