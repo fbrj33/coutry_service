@@ -43,15 +43,18 @@ pipeline {
             }
         }
 
-        stage('Quality Gate') {
-            steps {
-                // Requires a SonarQube webhook to http://<jenkins>:8080/sonarqube-webhook/
-                // Delete this stage if you have not configured the webhook
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
+       stage('Quality Gate') {
+    steps {
+        timeout(time: 10, unit: 'MINUTES') {
+            script {
+                def qg = waitForQualityGate(
+                    abortPipeline: true
+                )
+                echo "Quality Gate status: ${qg.status}"
             }
         }
+    }
+}
 
         stage('Deploy Artifact (.jar) to Nexus') {
             steps {
