@@ -15,7 +15,7 @@ pipeline {
         stage('Checkout code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/Daehkcarc-sys/country-service.git'
+                    url: 'https://github.com/fbrj33/coutry_service'
             }
         }
 
