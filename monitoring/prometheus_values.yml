@@ -1,13 +1,12 @@
-kube-state-metrics:
-  enabled: false
-alertmanager:
-  enabled: false
-prometheus-pushgateway:
-  enabled: false
-server:
-  persistentVolume:
-    enabled: false
-extraScrapeConfigs: |
-  - job_name: kube-state-metrics
-    static_configs:
-      - targets: ['kube-state-metrics.monitoring.svc.cluster.local:8080']
+serverFiles:
+  prometheus.yml:
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+              - localhost:9090
+
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets:
+              - kube-state-metrics.monitoring.svc.cluster.local:8080
