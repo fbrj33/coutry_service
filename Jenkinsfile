@@ -63,7 +63,7 @@ pipeline {
                         installation: 'myansible',
                         inventory: 'hosts',
                         playbook: 'playbookCICD.yml',
-                        vaultCredentialsId: 'ansible-vault-pass',
+                        vaultCredentialsId: 'ansible-vault-password',
                         extras: "-e image_tag=${BUILD_NUMBER}",
                         colorized: true
                     )
