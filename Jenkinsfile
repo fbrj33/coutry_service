@@ -1,6 +1,9 @@
-
 pipeline {
     agent any
+
+    environment {
+        MAVEN_OPTS = '-Xmx512m'
+    }
 
     tools {
         maven 'mymaven'
@@ -8,6 +11,18 @@ pipeline {
 
     triggers {
         githubPush()
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 25, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timestamps()
+    }
+
+    parameters {
+        booleanParam(name: 'INSTALL_MONITORING', defaultValue: false,
+                     description: 'Install/upgrade kube-state-metrics (one-time setup)')
     }
 
     stages {
@@ -21,37 +36,28 @@ pipeline {
 
         stage('Build and test (Maven, JUnit)') {
             steps {
-                sh 'mvn clean install jacoco:report'
+                sh 'mvn -B -ntp clean install jacoco:report'
             }
             post {
                 always {
                     junit allowEmptyResults: true,
-                        testResults: '**/target/surefire-reports/*.xml'
+                          testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube Analysis + Quality Gate') {
             steps {
-                withSonarQubeEnv(
-                    installationName: 'MySonarQubeServer',
-                    credentialsId: 'sonarqube-token'
-                ) {
+                withSonarQubeEnv(installationName: 'MySonarQubeServer',
+                                 credentialsId: 'sonarqube-token') {
                     sh '''
-                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.3.0.6276:sonar \
+                        mvn -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.3.0.6276:sonar \
                             -Dsonar.projectKey=country-service \
                             -Dsonar.projectName=country-service \
-                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                            -Dsonar.qualitygate.wait=true \
+                            -Dsonar.qualitygate.timeout=300
                     '''
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                sleep(time: 20, unit: 'SECONDS')
-                timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -84,6 +90,7 @@ pipeline {
         }
 
         stage('Monitoring: kube-state-metrics (Helm)') {
+            when { expression { params.INSTALL_MONITORING } }
             steps {
                 withKubeConfig(credentialsId: 'kubeconfig-file') {
                     sh '''
@@ -110,13 +117,11 @@ pipeline {
 
     post {
         always {
-            cleanWs()
+            cleanWs(notFailBuild: true)
         }
-
         success {
-            echo 'Pipeline executed successfully: app deployed and monitored.'
+            echo 'Pipeline executed successfully: app deployed.'
         }
-
         failure {
             echo 'Pipeline execution failed!'
         }
