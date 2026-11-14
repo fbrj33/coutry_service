@@ -70,7 +70,7 @@ pipeline {
                         inventory: 'hosts',
                         playbook: 'playbookCICD.yml',
                         vaultCredentialsId: 'ansible-vault-password',
-                        extras: "-e image_tag=${BUILD_NUMBER}",
+                        extras: "-e image_tag=${BUILD_NUMBER} -e kubeconfig_path=${env.KUBECONFIG}",
                         colorized: true
                     )
                 }
