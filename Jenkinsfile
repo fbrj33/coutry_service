@@ -81,9 +81,9 @@ pipeline {
             steps {
                 withKubeConfig(credentialsId: 'kubeconfig-file') {
                     sh '''
-                        kubectl rollout status deployment/my-country-service --timeout=120s
-                        kubectl get pods -l app=country-service
-                        kubectl get endpoints my-country-service
+                        kubectl -n jenkins rollout status deployment/my-country-service --timeout=120s
+                        kubectl -n jenkins get pods -l app=country-service
+                        kubectl -n jenkins get endpoints my-country-service
                     '''
                 }
             }
