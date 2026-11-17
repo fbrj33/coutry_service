@@ -94,11 +94,9 @@ pipeline {
             steps {
                 withKubeConfig(credentialsId: 'kubeconfig-file') {
                     sh '''
-                        helm repo add prometheus-community \
-                            https://prometheus-community.github.io/helm-charts --force-update
-
                         helm upgrade --install kube-state-metrics \
-                            prometheus-community/kube-state-metrics \
+                            oci://ghcr.io/prometheus-community/charts/kube-state-metrics \
+                            --version 9.0.1 \
                             --kube-context docker-desktop \
                             --namespace monitoring \
                             --create-namespace \
